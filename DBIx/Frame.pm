@@ -1,11 +1,13 @@
+$VERSION = "1.06";
 package DBIx::Frame;
-# -*- Perl -*- Tue Oct 21 13:34:15 CDT 2003 
+our $VERSION = "1.06";
+
+# -*- Perl -*- 		Wed May 26 09:23:06 CDT 2004 
 ###############################################################################
 # Written by Tim Skirvin <tskirvin@ks.uiuc.edu>
-# Copyright 2000-2003, Tim Skirvin and UIUC Board of Trustees.  Redistribution 
-# terms are below.
+# Copyright 2000-2004, Tim Skirvin and UIUC Board of Trustees.  
+# Redistribution terms are below.
 ###############################################################################
-use vars qw( $VERSION ); $VERSION = "1.05.07";
 
 =head1 NAME
 
@@ -1243,7 +1245,7 @@ that more functions may be added at the discretion of the designer):
 This is a string that contains the name of the table.  This should be
 fairly self-explanatory.  
 
-Example (from TB::Publications::Papers):
+Example (from TCB::Publications::Papers):
   
   $NAME = "Papers";
 
@@ -1257,7 +1259,7 @@ be the only ones the table knows of, and extra data will be discarded by
 the functions above.  As such, this is vital if you actually want to use
 the database.
 
-Example (from TB::Publications::Papers):
+Example (from TCB::Publications::Papers):
   
   $FIELDS = {
 
@@ -1306,7 +1308,7 @@ into the database.  Also, each of these fields must be present in order to
 insert the item into the DB.  This is vital if you want to add or update
 information in the database.
 
-Example (from TB::Publications::Papers):
+Example (from TCB::Publications::Papers):
 
   $KEYS  = [ 'TBRef', 'TBCode' ];
 
@@ -1320,11 +1322,11 @@ This is an arrayref that defines the fields upon which we should order our
 select()s on by default.  Sorts in ascending order unless preceeded by '-', 
 in which case we'll sort in descending order.  
 
-Example (from TB::Seminar::Lecture):
+Example (from TCB::Seminar::Lecture):
 
   $ORDER = [ '-Date', 'Name' ];
 
-Defaults to 'ID'
+Defaults to 'ID' if not offered.
 
 =item  ADMIN
 
@@ -1333,7 +1335,7 @@ edited by non-administrative users - that is, these fields are somewhat
 protected when being worked on by external users.  Note that this should
 not (at this point) be considered safe, it's just a matter of convenience.
 
-Example (from TB::Conference::Register):
+Example (from TCB::Conference::Register):
 
   $ADMIN    = [ 'Approved', 'GotMoney' ];
 
@@ -1347,7 +1349,7 @@ This is an arrayref that contains fields that must be filled in when an
 entry is created - that is, fields that shouldn't be empty.  Unlike the
 KEYS information, these fields don't necessarily have to be unique either.
 
-Example (from TB::Conference::Register):
+Example (from TCB::Conference::Register):
 
   $REQUIRED = [ 'LastName', 'FirstName', 'Email', 'Title', 'Institution',
                 'Department', 'Housing', 'Gender', 'Citizenship' ];
@@ -1392,14 +1394,14 @@ Runs the code, with the argument set being ($self, C<ITEMHASH>).
 
 =back
 
-Example (from TB::SystemDB::Port): 
+Example (from TCB::System::Port): 
 
   $LIST = [ 
     { 'Room' => '$$RoomNumber$$ $$Building$$' },
     { 'Port Speed' => '$$PortSpeed$$' } ,
     'BoxNumber', 'PortNumber', 'PortMachine' ];
 
-Another example (from TB::Travel::Event):
+Another example (from TCB::Travel::Event):
 
   $LIST  = [ 
 	'Title', 'Location',
@@ -1429,56 +1431,69 @@ The function should take inputs like this:
 	   Note that this is not documented in the below example!
   @rest  - anything else it feels like taking
 
-Example (from TB::Publications::Files):
+The returned HTML can either be a table (which doesn't require any
+stylesheet information) or properly formatted HTML4.  If the latter, you
+may want to make sure scripts that invoke this function also use a
+relevant stylesheet.  
+
+Example (from TCB::Publications::Files):
 
   sub html {
-    my $cgi = new CGI;
-    my $date = sprintf("%04d-%02d-%02d", (localtime)[5] + 1900,
-                                         (localtime)[4] + 1, 
-					 (localtime)[3] );
     my ($self, $entry, $type, $options, @rest) = @_;
-    if    (lc $type eq 'create') { } 
-    elsif (lc $type eq 'search') { $$entry{'Type'} ||= 'PDF'; }
-    elsif (lc $type eq 'edit')   { }
-    elsif (lc $type eq 'view')   { }
-    else 		         { $entry ||= {} }
-
-    my @types = ( '', 'HTML', 'PS', 'DVI', 'PDF' );
-    my @codes = sort $self->select_fieldlist('Papers', 'TBCode'), '';
-    @codes = grep { $_ if /\S+/ } @codes;
+    my $cgi = new CGI;    $entry ||= {};
+  
+    my %public = ( 0 => "Public", 1 => "Internal Only" );
+    if (lc $type eq 'search') { $public{''} = "*" }
+  
+    my @types = sort @LINKTYPES;  unshift @types, '';
+  
+    my @codes = sort grep { $_ if /\S+/ } 
+                  $self->select_fieldlist('Papers', 'TBCode');  
     unshift @codes, '';
 
-    my @return;
-    push @return, <<HTML;
-  <table>
-   <tr>
-    <td align=center> TBCode </td>
-    <td align=center>
-     @{[$cgi->textfield('TBCode', $$entry{TBCode}, 8, 255)]}</td>
-    </td>
-    <td align=center> File Type </td>
-    <td align=center>
-     @{[$cgi->popup_menu('Type',\@types,$$entry{Type})]}</td>
-    </td>
-   </tr><tr>
-    <td align=center> Location </td>
-    <td align=center colspan=3>
-     @{[ $cgi->textfield('Location', $$entry{Location}, 60, 1024) ]}
-    </td>
-   </tr><tr>
-    <td align=center> Description </td>
-    <td align=center colspan=3>
-     @{[ $cgi->textarea(-name=>'Description', 
-			-default=>$$entry{Description},
-                        -rows=>7, -cols=>60, -maxlength=>65535,
-                        -wrap=>'physical') ]}
-    </td>
-   </tr><tr>
-    <td align=center colspan=4>
-     @{[ $cgi->submit('Submit') ]}
-      </td>
-   </tr>
-  </table>
+  my @return = <<HTML;
+  <div class="basetable">
+   <div class="row2">
+    <span class="label">TBCode</span>
+    <span class="formw">
+     @{[ $cgi->popup_menu('TBCode', \@codes, $$entry{TBCode} || "") ]} 
+    </span>
+    <span class="label">File Type</span>
+    <span class="formw">
+     @{[ $cgi->popup_menu('Type', \@types, $$entry{Type} || "") ]}
+    </span>
+   </div>
+  
+   <div class="row1">
+    <span class="label">Location</span>
+    <span class="formw">
+     @{[ $cgi->textfield('Location', $$entry{Location} || "", 70, 1024) ]}
+    </span>
+   </div>
+  
+   <div class="row1">
+    <span class="label">Description</span>
+    <span class="formw">
+       @{[ $cgi->textarea(-name=>'Description', 
+                          -default=>$$entry{Description} || "",
+                          -rows=>7, -cols=>60, -maxlength=>65535,
+                          -wrap=>'physical') ]}
+    </span>
+   </div>
+  
+   <div class="row1">
+    <span class="label">Restricted?</span>
+    <span class="formw">
+      @{[ $cgi->popup_menu('Restricted', [sort keys %public], 
+                    $$entry{Restricted} || "", \%public) ]}
+    </span>
+   </div>
+  
+  
+   <div class="submitbar"> @{[ $cgi->submit(-name=>"Submit") ]} </div>
+  
+  </div>
+  
   HTML
     wantarray ? @return : join("\n", @return);
   }
@@ -1489,9 +1504,9 @@ Related functions: C<html()>, C<htmlref()>
 
 This is a code reference that, when invoked, will return a string
 containing the data that you wish to display in text.  This mostly 
-pertains to C<DBIx::Frame::Text>.
+pertains to C<DBIx::Frame::Text>.  
 
-Example (from TB::mysql::user):
+Example (from TCB::mysql::user):
 
   sub text {
   my ($self, $entry) = @_;
@@ -1519,17 +1534,14 @@ little effort; only some internal code may need changing.
 
 Perl 5 or better, the DBI module, and the appropriate drivers for your
 database (DBD::mysql, in our case).  To really make it useful you'll want 
-a set of DBIx::Frame database modules, such as C<TB::InfoWeb> or
-C<TB::Publications>, though you can (and should) design your own.
+a set of DBIx::Frame database modules, such as C<TCB::AddressBook> or
+C<TCB::Publications>, though you can (and should) design your own.
 
 =head1 SEE ALSO
 
-B<DBI>, and the TB::Test database modules for further examples of how to
-create these databases.
-
-http://www.ks.uiuc.edu/Development/MDTools/dbixframe for the latest version.
-
-B<DBIx::Frame::CGI> for a web interface.
+B<DBI>, B<DBIx::Frame::CGI>.  Many of the databases on the MDTools web
+site (B<http://www.ks.uiuc.edu/Development/MDTools/>) offer further
+examples of how to design databases and use this package.
 
 =head1 TODO
 
@@ -1547,56 +1559,27 @@ least in a few simple steps (easier said than done).
 
 Make some scripts to auto-generate modules to specification.
 
-Make TB::Test and the other various TB databases available.
-
 =head1 AUTHOR
 
 Written by Tim Skirvin <tskirvin@ks.uiuc.edu>.
 
+=head1 HOMEPAGE
+
+B<http://www.ks.uiuc.edu/Development/MDTools/dbixframe/>
+
 =head1 LICENSE
 
-University of Illinois Open Source License
-Copyright (c) 2000-2003 University of Illinois Board of Trustees 
-All rights reserved
-Developed by:	Theoretical and Computational Biophysics Group
-		University of Illinois, Beckman Institute
-		http://www.ks.uiuc.edu/
-
-Permission is hereby granted, free of charge, to any person obtaining a
-copy of this software, DBIx::Frame, and associated documentation files
-(the "Software"), to deal with the Software without restriction,
-including without limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of the Software, and
-to permit persons to whom the Software is furnished to do so, subject to
-the following conditions:
-
-	* Redistributions of source code must retain the above copyright 
-	  notice, this list of conditions and the following disclaimers.
-	* Redistributions in binary form must reproduce the above copyright 
-	  notice, this list of conditions and the following disclaimers in 
-	  the documentation and/or other materials provided with the 
-	  distribution.
-	* Neither the names of the Theoretical and Computational
-	  Biophysics Group, the University of Illinois, nor the names of 
-	  its contributors may be used to endorse or promote products 
-	  derived from this Software without specific prior written 
-	  permission.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL 
-THE CONTRIBUTORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR 
-OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, 
-ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR 
-OTHER DEALINGS WITH THE SOFTWARE.
+This code is distributed under the University of Illinois Open Source
+License.  See
+C<http://www.ks.uiuc.edu/Development/MDTools/dbixframe/license.html> for
+details.
 
 =head1 COPYRIGHT
 
-Copyright 2000-2002 by the University of Illinois Board of Trustees and 
-Tim Skirvin <tskirvin@ks.uiuc.edu>.  
+Copyright 2000-2004 by the University of Illinois Board of Trustees and
+Tim Skirvin <tskirvin@ks.uiuc.edu>.
 
 =cut
-
 
 ###############################################################################
 ##### Version History #########################################################
@@ -1695,3 +1678,5 @@ Tim Skirvin <tskirvin@ks.uiuc.edu>.
 ### Trying to work on this don't-order thing some more.  
 # v1.05.07	Tue Oct 21 13:33:56 CDT 2003 
 ### Renamed to DBIx::Frame.  Getting ready for a release.
+# v1.06		Wed May 26 09:24:06 CDT 2004 
+### Lots of documentation updates.

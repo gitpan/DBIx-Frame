@@ -1,5 +1,14 @@
 Revision history for Perl extension DBIx::Frame.
 
+1.06	Wed May 26 09:11:40 CDT 2004 
+
+	Minor changes in DBIx::Frame::CGI, mostly bug fixes and HTML changes.
+
+	Documentation fixes all around.
+
+	dbixframe.cgi and dbixframe_create.pl fixes to match what we've
+	done elsewhere (mostly added documentation).
+
 1.05	Tue Oct 21 13:32:09 CDT 2003 
 	
 	Renamed everything from 'DBI::Frame' to 'DBIx::Frame', so it's
@@ -75,5 +84,3 @@ Revision history for Perl extension DBIx::Frame.
 
 	Original released version - uses the NAMD license (we'll change
 	  this whenever possible).
-
-	

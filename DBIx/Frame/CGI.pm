@@ -1,12 +1,13 @@
+$VERSION = "1.01.02";
 package DBIx::Frame;
-# -*- Perl -*- Tue Oct 21 13:49:39 CDT 2003 
+our $VERSION = "1.01.02";
+
+# -*- Perl -*- 		Wed May 26 09:08:25 CDT 2004 
 ###############################################################################
 # Written by Tim Skirvin <tskirvin@ks.uiuc.edu>
-# Copyright 2001-2002, Tim Skirvin and UIUC Board of Trustees.
+# Copyright 2001-2004, Tim Skirvin and UIUC Board of Trustees.
 # Redistribution terms are below.
 ###############################################################################
-use vars qw(@EXPORT @EXPORT_OK @ISA $VERSION);
-$VERSION = "1.00";
 
 =head1 NAME
 
@@ -50,7 +51,7 @@ use HTML::FormRemove qw(RemoveFormValues);
 use Exporter;
 use CGI;
 
-use vars qw( @ACTIONS %ACTION );
+use vars qw(@EXPORT @EXPORT_OK @ISA @ACTIONS %ACTION );
 @ACTIONS = qw( create list search );
 %ACTION = ( 'edit'   => \&html_edit, 	'view'   => \&html_view,
 	    'create' => \&html_create,  'search' => \&html_search,
@@ -205,10 +206,12 @@ sub html_menu {
   my $cgi = new CGI;
 
   my @return = $cgi->start_form;
-
+  
   my @list = sort $self->tables;
   push @return, $cgi->popup_menu('table', \@list, $table);
-  foreach ( @ACTIONS ) { push @return, $cgi->submit('action', ucfirst $_ ); }
+  foreach ( @ACTIONS ) { 
+    next unless $_; 
+    push @return, $cgi->submit('action', ucfirst $_ ); }
   push @return, $cgi->end_form;
 
   wantarray ? @return : join("\n", @return);
@@ -236,9 +239,9 @@ sub html_create {
   my ($self, $table, $params, $options, @other) = @_;
   my $html = $self->html->{$table}; 
   my @return;
-  push @return, "<center><font size=+2>Add to '$table'</font></center><br>" 
+  push @return, "<center><font size=+2>Add to '$table'</font></center><br />" 
 			unless $$options{'quiet'};
-  return <<EOL;
+  push @return, <<EOL;
   <center>
    <FORM action='$0' method=post>
     <input type=hidden name=action value='insert'>
@@ -248,6 +251,7 @@ sub html_create {
    </FORM>
   </center>
 EOL
+  wantarray ? @return : join("\n", @return);
 }
 
 =item html_list ( TABLE, PARAMS, OPTIONS )
@@ -368,13 +372,13 @@ sub html_list_nosearch {
         my $action = $self->_action($table, $option, $entry, $0);
         push @list, "<a href='$action'>" . ucfirst lc $option . "</a>";
       }
-      push @return, "  <td align=center nowrap>", join(" | \n", @list), "  </td>";
+      push @return, "  <td align=center nowrap>", join(" | \n", @list), "</td>";
     }
     push @return, " </tr>";
   }
 
   if (! $printed ) {	# No entries matched, go back to 'search'
-    push @return, "<font size=+2><center><b>No matches</b></center></font><p>";
+    push @return, "<p align=center><font size=+2><b>No matches</b></font></p>";
     push @return, "</table>\n";
     push @return, $self->html_search($table, $params, $options)
 		unless $$options{nodelsearch};
@@ -385,7 +389,7 @@ sub html_list_nosearch {
       push @return, "<caption align=top>";
       push @return, " Entries ", $first + 1, " - ",
                   ($entrycount < $last) ? $entrycount : $last,
-                    " of $entrycount<br>";
+                    " of $entrycount<br />";
 
       push @return, join(" \n",
            $self->_firstentry($action, $params, $first, $total, $entrycount) );
@@ -402,7 +406,7 @@ sub html_list_nosearch {
         # Don't print count information, offer a 'search' option instead
         push @return, "<caption align=top>",
       	    " Entries ", $first + 1, " - ",
-            ($entrycount < $last) ? $entrycount : $last, " of $entrycount<br>",
+            ($entrycount < $last) ? $entrycount : $last, " of $entrycount<br />",
 	    "</caption>";
         push @return, "</table>";
         push @return, 
@@ -443,8 +447,8 @@ sub html_search {
 	unless $$options{'nosearchname'};
   push @return, <<EOL;
   <center> <FORM action='$0' method=post>
-   <input type=hidden name=action value='list'>
-   <input type=hidden name=table value=$table>
+   <input type=hidden name=action value='list' />
+   <input type=hidden name=table value=$table />
    @{[ $self->_replace($params || {}, $html->( $self, undef, 'search', 
 			$options )) ]}
   </FORM> </center>
@@ -476,8 +480,8 @@ sub html_edit {
     push @return, <<EDIT;
 <center><font size=+2>Edit item in $table</font>
 <FORM action='$0' method=post>
- <input type=hidden name=action value='update'>
- <input type=hidden name=table value=$table>
+ <input type=hidden name=action value='update' />
+ <input type=hidden name=table value=$table />
  @{[ $cgi->hidden('ID', $$entry{ID}) ]}
  @list
  @{[ $self->_replace($entry, $html->( $self, $entry, 'update', $options )) ]}
@@ -786,7 +790,9 @@ sub _make_select_keys {
   my @items;
   foreach ($self->key($table) ) {
     next unless $_;
-    push @items, join('=', $_, $$entry{$_} ) if $$entry{$_};
+    my $val = $$entry{$_};  next unless defined $$entry{$_};  
+    $val =~ s/%/\\%/g; 
+    push @items, join('=', $_, $val);
   }
   join '&', @items;
 }
@@ -817,7 +823,7 @@ of when writing the CGI scripts and choosing which user can connect.
 
 Good class design is also important.  The C<KEY> values that you use must
 guarantee that each item is unique!  If this is not done, then functions
-like C<html_delete()> can wreak havoc on your 
+like C<html_delete()> can wreak havoc on your tables.
 
 =head1 REQUIREMENTS
 
@@ -836,45 +842,20 @@ something else with C<html_view()> (which I'm not altogether happy with).
 
 Written by Tim Skirvin <tskirvin@ks.uiuc.edu>.
 
+=head1 HOMEPAGE
+
+B<http://www.ks.uiuc.edu/Development/MDTools/dbixframe/>
+
 =head1 LICENSE
 
-University of Illinois Open Source License
-Copyright (c) 2002 University of Illinois Board of Trustees 
-All rights reserved
-Developed by:	Theoretical Biophysics Group
-		University of Illinois, Beckman Institute
-		http://www.ks.uiuc.edu/
-
-Permission is hereby granted, free of charge, to any person obtaining a
-copy of this software, DBIx::Frame, and associated documentation files
-(the "Software"), to deal with the Software without restriction,
-including without limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of the Software, and
-to permit persons to whom the Software is furnished to do so, subject to
-the following conditions:
-
-	* Redistributions of source code must retain the above copyright 
-	  notice, this list of conditions and the following disclaimers.
-	* Redistributions in binary form must reproduce the above copyright 
-	  notice, this list of conditions and the following disclaimers in 
-	  the documentation and/or other materials provided with the 
-	  distribution.
-	* Neither the names of the Theoretical Biophysics Group, the
-	  University of Illinois, nor the names of its contributors may 
-	  be used to endorse or promote products derived from this Software 
-	  without specific prior written permission.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL 
-THE CONTRIBUTORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR 
-OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, 
-ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR 
-OTHER DEALINGS WITH THE SOFTWARE.
+This code is distributed under the University of Illinois Open Source
+License.  See
+C<http://www.ks.uiuc.edu/Development/MDTools/dbixframe/license.html> for
+details.
 
 =head1 COPYRIGHT
 
-Copyright 2000-2001 by the University of Illinois Board of Trustees and
+Copyright 2000-2004 by the University of Illinois Board of Trustees and
 Tim Skirvin <tskirvin@ks.uiuc.edu>.
 
 =cut
@@ -923,3 +904,8 @@ Tim Skirvin <tskirvin@ks.uiuc.edu>.
 ### documentation a bit for prettiness
 # v1.00		Tue Oct 21 13:49:49 CDT 2003 
 ### Updated to be DBIx::Frame.  Updated for prettiness.
+# v1.01.01	Mon May 17 11:01:57 CDT 2004 
+### Small fix in html_create().  <br> -> <br />
+# v1.01.02	Wed May 26 09:10:14 CDT 2004 
+### Changes in _make_select_keys() to deal with '%' in the values better.
+### Some fixes to make things closer to HTML4; more will have to come later.

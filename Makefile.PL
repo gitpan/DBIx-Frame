@@ -21,4 +21,6 @@ WriteMakefile(
     'PM' 	=> $modules,
     'EXE_FILES' => [ 'dbixframe.cgi', 'dbixframe_create.pl' ],
     'dist' => { COMPRESS => 'gzip', SUFFIX => 'gz' },
+    'AUTHOR'    => 'tskirvin@ks.uiuc.edu (Tim Skirvin)',
+    'ABSTRACT_FROM'  => 'DBIx/Frame.pm',
 );

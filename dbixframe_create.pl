@@ -1,10 +1,68 @@
 #!/usr/local/bin/perl -Tw 
-use vars qw( $VERSION $CLASS $DATABASE $DBUSER $DBPASS $DBHOST $DBTYPE 
+use vars qw( $version $CLASS $DATABASE $DBUSER $DBPASS $DBHOST $DBTYPE @MODS
 	     $opt_h $opt_d $opt_c $opt_u $opt_p $opt_b $opt_v $opt_t $opt_a ); 
-$VERSION = "0.6";
+$version = "1.1";
+
+=head1 NAME
+
+xxx_create.pl - Database creation/deletion/status script for DBIx::Frame
+
+=head1 SYNOPSIS
+
+  xxx_create.pl [-hvcd] [-b database] [-u user] [-p password]
+
+	-b database	Database to investigate.  Defaults to $DATABASE
+  	-u user		Username to connect with.  Defaults to $DBUSER
+	-p password	Password to connect with.  
+
+	-h		Prints this message and exit.
+	-v		Prints the version number and exits.
+
+	-t TABLE	Work on table TABLE
+	-a		Work on all tables.
+
+	-c		Create new database.  Can be used with -d to reset
+			  the database.
+	-d		Delete old database.  You may lose data with this.
+
+=head1 DESCRIPTION
+
+Creates, deletes, or just prints off status information about a
+$CLASS database.  Should be fairly self-explanatory.  Note that
+the database must exist first; this only creates the tables.
+
+=head1 REQUIREMENTS
+
+B<$CLASS>
+
+=head1 SEE ALSO
+
+B<$CLASS>, B<DBIx::Frame::CGI>
+
+=head1 AUTHOR
+
+Written by Tim Skirvin <tskirvin@ks.uiuc.edu>.
+
+=head1 HOMEPAGE
+
+B<http://www.ks.uiuc.edu/Development/MDTools/dbixframe/>
+
+=head1 LICENSE
+
+This code is distributed under the University of Illinois Open Source
+License.  See
+C<http://www.ks.uiuc.edu/Development/MDTools/dbixframe/license.html>
+for details.
+
+=head1 COPYRIGHT
+
+Copyright 2000-2004 by the University of Illinois Board of Trustees and
+Tim Skirvin <tskirvin@ks.uiuc.edu>.
+
+=cut
 
 ###############################################################################
-### CONFIGURATION + PRIVATE DATA ##############################################
+### Configuration + Private Data ##############################################
 ###############################################################################
 
 ## Load shared configurations and/or private data using 'do' commands, as
@@ -15,6 +73,11 @@ $VERSION = "0.6";
 ## This is the perl class that you will be using in this script.
 
 $CLASS = "";
+
+## The sub-modules that may exist; it will load as many as possible, and
+## offer warnings for those it couldn't get.
+
+@MODS = qw( $CLASS );
 
 ## Modify and uncomment this to use user code instead of just system-wide
 ## modules.  Note that this path must be set up as a standard Perl tree;
@@ -46,6 +109,7 @@ use Getopt::Std;
 use DBIx::Frame;
 
 $0 =~ s%.*/%%;	 # Clean the path up
+Usage() unless scalar @ARGV;
 getopts('cdhvu:p:b:t:a');
 
 Usage() if $opt_h;
@@ -56,6 +120,11 @@ $DBPASS   = $opt_p if $opt_p;
 
 # Load the appropriate class module
 { local $@; eval "use $CLASS";  die "$@\n" if $@; }
+
+# Load the sub-modules
+my @PROBS;
+foreach (@MODS) { local $@; eval "use $_"; push @PROBS, "$@" if $@; }
+warn @PROBS if scalar @PROBS;
 
 # Confirm that the user really meant -d
 if ($opt_d) {
@@ -72,8 +141,7 @@ if ($opt_d) {
 my $db = $CLASS->connect($DATABASE, $DBUSER, $DBPASS, $DBHOST, $DBTYPE) 
 	|| Exit("Couldn't connect to '$DATABASE':  ", DBI::errstr, "\n");
 
-my %tables = %{$db->fieldhash} if ($db->fieldhash && ref $db->fieldhash);
-Exit("No tables to create!") unless %tables;
+my %tables = %{$db->fieldhash};
 
 foreach my $table (sort keys %tables) {
   next unless ref $tables{$table};
@@ -107,18 +175,19 @@ exit(0);
 ### Usage()
 # Prints off help information and exits
 sub Usage {
-  warn <<EOM;
-
-$0 v$VERSION
-A database creation/deletion/status script for DBIx::Frame
+  my $database = $DATABASE || "";
+  my $dbuser   = $DBUSER   || "";
+  print <<EOM;
+$0 v$version
+A database creation/deletion/status script for $CLASS
 Usage: $0 [-hvcd] [-b database] [-u user] [-p password]
 
-Creates, deletes, or just prints off status information about a DBIx::Frame 
-database.  Should be fairly self-explanatory.  Note that the database must
-exist first; this only creates the tables.
+Creates, deletes, or just prints off status information about a
+$CLASS database.  Should be fairly self-explanatory.  Note that
+the database must exist first; this only creates the tables.
 
-	-b database	Database to investigate.  Defaults to $DATABASE
-  	-u user		Username to connect with.  Defaults to $DBUSER
+	-b database	Database to investigate.  Defaults to '$database'
+  	-u user		Username to connect with.  Defaults to '$dbuser'
 	-p password	Password to connect with.  
 
 	-h		Prints this message and exit.
@@ -135,29 +204,22 @@ EOM
   Exit();
 }
 
+
+
 ### Version
 # Prints the version
-sub Version { Exit("$0 v$VERSION") }
+sub Version { Exit("$0 v$version") }
 
 ### Exit
 # Prints off whatever it gets to 
 sub Exit { foreach (@_) { print "$_\n" } exit(0); }
 
 ###############################################################################
-### License Information #######################################################
-###############################################################################
-# Written by Tim Skirvin <tskirvin@ks.uiuc.edu>
-# Copyright 2000-2003, Tim Skirvin and UIUC Board of Trustees.
-# This program is part of the DBIx::Frame package, available at
-#   http://www.ks.uiuc.edu/Development/MDTools/dbixframe/
-# License terms are on this web page, or included in the main package.
-
-###############################################################################
 ### Version History ###########################################################
 ###############################################################################
-# v0.5 	Fri Jul 13 11:18:07 CDT 2001
+# v0.5 		Fri Jul 13 11:18:07 CDT 2001
 ### First commented/properly supported version.
-# v0.51 	Fri Mar 22 13:45:33 CST 2002
-### Exits cleanly if there's no tables to work with.
-# v0.6		Tue Oct 21 13:36:36 CDT 2003 
-### Renamed to DBIx::Frame, updated this accordingly.
+# v1.0		Tue Oct 21 16:37:02 CDT 2003 
+### Releasing it, ready or not.
+# v1.1		Wed May 19 15:01:41 CDT 2004 
+### Oops, I forgot to include this last time...

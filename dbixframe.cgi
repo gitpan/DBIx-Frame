@@ -1,10 +1,57 @@
 #!/usr/local/bin/perl -Tw
 use vars qw( $DBHOST $DBTYPE $DATABASE $DBUSER $DBPASS $DEBUG $CLASS $DB $HTML 
-             $OPTIONS $TITLE @ACTIONS $HTMLHEAD $HTMLFOOT $HTMLBODY $VERSION );
-$VERSION = "1.3"; 	
+             $OPTIONS $TITLE @ACTIONS $HTMLHEAD $HTMLFOOT $HTMLBODY $VERSION 
+	     $ROOTCLASS $STYLESHEET );
+$VERSION = "1.5"; 	
+
+=head1 NAME
+
+dbixframe.cgi - Administer a DBIx::Frame database
+
+=head1 SYNOPSIS
+
+Unfortunately, no URL is available for public use.  You can see the man
+pages for DBIx::Frame::CGI for some details, otherwise you probably just
+want to try it out.
+
+=head1 DESCRIPTION
+
+dbixframe.cgi is a basic script, meant to be customized to administer an
+individual DBIx::Frame database.  Entries for all tables can be added,
+deleted, or modified with this package.  
+
+=head1 REQUIREMENTS
+
+B<DBIx::Frame::CGI>, whatever database package you're using.
+
+=head1 SEE ALSO
+
+B<DBIx::Frame::CGI>
+
+=head1 AUTHOR
+
+Written by Tim Skirvin <tskirvin@ks.uiuc.edu>.
+
+=head1 HOMEPAGE
+
+B<http://www.ks.uiuc.edu/Development/MDTools/dbixframe/>
+
+=head1 LICENSE
+
+This code is distributed under the University of Illinois Open Source
+License.  See
+C<http://www.ks.uiuc.edu/Development/MDTools/dbixframe/license.html>
+for details.
+
+=head1 COPYRIGHT
+
+Copyright 2000-2004 by the University of Illinois Board of Trustees and
+Tim Skirvin <tskirvin@ks.uiuc.edu>.
+
+=cut
 
 ###############################################################################
-### CONFIGURATION + PRIVATE DATA ##############################################
+### Configuration + Private Data ##############################################
 ###############################################################################
 
 ## Load shared configurations and/or private data using 'do' commands, as
@@ -16,6 +63,11 @@ $VERSION = "1.3";
 
 $CLASS   = "";				# Database class
 
+## This is the root class of the above class.  Essentially a hack to let
+## there be multiple modules using the same database.
+
+$ROOTCLASS = $CLASS;               	# Class of the database class
+
 ## Modify and uncomment this to use user code instead of just system-wide 
 ## modules.  Note that this path must be set up as a standard Perl tree;
 ## I'd personally recommend just installing things system-wide unless you're
@@ -25,13 +77,13 @@ $CLASS   = "";				# Database class
 
 ## Document title - set this as appropriate.
 
-$TITLE   = "";		
+$TITLE   = "DBIx::Frame Adminstration - Generic";		
 
 ## Set these options to modify the behaviour of the HTML creation code.
 
 $OPTIONS = { 					
-	'admin'    => 0, 	# Offer 'edit' and 'delete' functions?
-	'nodetail' => 0, 	# Don't offer 'view'?
+	'admin'    => 1, 	# Offer 'edit' and 'delete' functions?
+	'nodetail' => 1, 	# Don't offer 'view'?
 	'nomenu'   => 0,	# Don't include the bottom menu?
 	'nocount'  => 0,	# Don't use 'next 25 entries' buttons
 	'count'    => 25,	# How many entries should we offer at a time?
@@ -72,9 +124,14 @@ $DEBUG   = 0;
 ## modify the code (which is below) or create a new set of functions and 
 ## change the below code references appropriately.
 
-$HTMLHEAD = \&html_head;	
+$HTMLHEAD = \&html_head;
 $HTMLFOOT = \&html_foot;
 $HTMLBODY = \&html_body; 
+
+## Do we want to use a specific stylesheet?  This position is relative to
+## wherever the script is being run.
+
+$STYLESHEET = "stylesheet.css";
 
 ###############################################################################
 ### main() ####################################################################
@@ -89,7 +146,7 @@ use strict;
 
 $0 =~ s%.*/%%g;		# Lose the annoying path information
 my $cgi = new CGI || die "Couldn't open CGI";
-$DB = $CLASS->connect( $DATABASE, $DBUSER, $DBPASS, $DBHOST, $DBTYPE )
+$DB = $ROOTCLASS->connect( $DATABASE, $DBUSER, $DBPASS, $DBHOST, $DBTYPE )
 	or Error("Couldn't connect to $DBHOST: $DBI::errstr\n");
 my $error = $DBI::errstr;	# Avoid a warning, otherwise unnecessary
 
@@ -98,7 +155,8 @@ foreach ($cgi->param) { $$params{$_} = $cgi->param($_); }
 
 if (scalar @ACTIONS) { @DBIx::Frame::ACTIONS = @ACTIONS }
 
-( print $cgi->header(), &$HTMLHEAD($TITLE), "\n" ) && $HTML++;
+( print $cgi->header(), &$HTMLHEAD($TITLE, 
+			-style => {-src=>$STYLESHEET}), "\n" ) && $HTML++;
 print &$HTMLBODY($DB, $params) || Error("There was an error in this script");
 print &$HTMLFOOT($DEBUG);
 exit(0);
@@ -111,7 +169,8 @@ exit(0);
 # Prints an error message based on PROBLEM and exits.
 
 sub Error {
-  print CGI->header(), &$HTMLHEAD("Error in '$0'") unless $HTML;
+  print CGI->header(), &$HTMLHEAD("Error in '$0'", 
+		-style => {-src=>$STYLESHEET}) unless $HTML;
 
   print "This script failed for the following reasons: <p>\n<ul>\n";
   foreach (@_) { next unless $_; print "<li>", canon($_), "<br>\n"; }
@@ -137,17 +196,18 @@ sub canon {
 # options are passed through to start_html.
 
 sub html_head { 
-  my $title = shift || $TITLE;
+  my $title = shift || $TITLE || "";
   use CGI;   my $cgi = new CGI;
-  $cgi->start_html(-title => $title, @_) . "\n";
+  $cgi->start_html( -title => $title, @_ );
 }
 
 ## html_body ( DB, PARAMS [, OPTIONS] )
 # Prints off the HTML body.
 sub html_body {
   my ($DB, $params, $options) = @_;
-  $DB->make_html( $$params{'table'} || "",
-                  $$params{'action'} || "", $params, $options || $OPTIONS );
+  return "" unless ref $params;
+  $DB->make_html( $$params{'table'} || "", $$params{'action'} || "", 
+  		  $params, $options || $OPTIONS );
 }
 
 ## html_foot ( DEBUG [, OPTIONS] )
@@ -194,15 +254,6 @@ sub debuginfo {
   wantarray ? @return : join("\n", @return);
 }
 
-##############################################################################
-### License Information #######################################################
-###############################################################################
-# Written by Tim Skirvin <tskirvin@ks.uiuc.edu>
-# Copyright 2000-2003, Tim Skirvin and UIUC Board of Trustees.
-# This program is part of the DBIx::Frame package, available at
-#   http://www.ks.uiuc.edu/Development/MDTools/dbixframe/
-# License terms are on this web page, or included in the main package.
-
 ###############################################################################
 ### Version History ###########################################################
 ###############################################################################
@@ -216,3 +267,8 @@ sub debuginfo {
 ### Fixed a bug in Error() - didn't print the CGI->header() in there before.
 # v1.3		Tue Oct 21 13:35:53 CDT 2003 
 ### Renamed DBI::Frame to DBIx::Frame, so updated everything accordingly.
+# v1.4		Tue May 11 13:00:14 CDT 2004 
+### Cleaned up with TCB::System.
+# v1.5		Mon May 17 14:00:19 CDT 2004 
+### Forked from DBIx::Frame into TCB::Publications; later forked back into
+### DBIx::Frame.  Generally, documentation was added.
